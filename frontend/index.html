@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Borderless Securities — Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --navy: #0A1628; --navyMid: #122040; --navyLight: #1A3260;
+    --gold: #C9A84C; --goldLight: #E8C97A; --green: #22C55E; --red: #EF4444;
+    --muted: #8899BB; --text: #E8ECF5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--navy); color: var(--text); min-height: 100vh;
+  }
+  header { padding: 24px 32px 0; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  nav { display: flex; gap: 4px; border-bottom: 1px solid var(--navyLight); padding: 0 32px; flex-wrap: wrap; }
+  nav button {
+    background: none; border: none; color: var(--muted); padding: 10px 16px;
+    font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: var(--gold); border-bottom-color: var(--gold); }
+  main { padding: 24px 32px 60px; max-width: 980px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--navyMid); border: 1px solid var(--navyLight); border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 16px;
+  }
+  .card h3 { margin: 0 0 4px; font-size: 15px; }
+  .card p.desc { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  label { display: block; font-size: 11px; color: var(--muted); margin: 10px 0 4px; }
+  input, select {
+    width: 100%; padding: 9px 10px; background: #0d1a30; border: 1px solid var(--navyLight);
+    border-radius: 6px; color: var(--text); font-size: 13px;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  button.action {
+    margin-top: 14px; background: var(--gold); color: var(--navy); border: none;
+    padding: 10px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button.action:hover { background: var(--goldLight); }
+  button.action.secondary { background: var(--navyLight); color: var(--text); }
+  .result { margin-top: 10px; font-size: 11.5px; padding: 10px; border-radius: 6px; background: #0d1a30; white-space: pre-wrap; word-break: break-all; display: none; }
+  .result.show { display: block; }
+  .result.ok { border-left: 3px solid var(--green); }
+  .result.err { border-left: 3px solid var(--red); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--navyLight); }
+  th { color: var(--muted); font-weight: 500; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10.5px; }
+  .pill.green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .pill.gray { background: rgba(136,153,187,0.15); color: var(--muted); }
+  .badge-gold { color: var(--gold); font-weight: 600; }
+  .flow-note { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .status-bar { font-size: 11.5px; color: var(--muted); margin-bottom: 14px; }
+  .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .status-dot.up { background: var(--green); }
+  .status-dot.down { background: var(--red); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🔒 Borderless Securities — Working Prototype</h1>
+    <div class="sub">Tokenized share-lien &amp; transfer platform. All actions here hit real deployed smart contracts on a local chain.</div>
+  </header>
+  <nav>
+    <button class="tab active" data-panel="setup">Setup</button>
+    <button class="tab" data-panel="members">Members</button>
+    <button class="tab" data-panel="company">Company</button>
+    <button class="tab" data-panel="lien">Lien &amp; Token</button>
+    <button class="tab" data-panel="transfer">Transfer</button>
+    <button class="tab" data-panel="redeem">Redeem</button>
+  </nav>
+  <main>
+    <div class="status-bar" id="statusBar"><span class="status-dot down" id="statusDot"></span><span id="statusText">Checking API connection…</span></div>
+
+    <!-- SETUP -->
+    <div class="panel active" id="setup">
+      <div class="card">
+        <h3>1. Start the chain and deploy contracts</h3>
+        <p class="desc">Run these once, from the project root, before using this UI. See README.md for full detail.</p>
+        <pre style="background:#0d1a30;padding:12px;border-radius:6px;font-size:12px;overflow:auto;">
+# Terminal 1
+npx hardhat node
+
+# Terminal 2 (after node is running)
+npm run deploy
+
+# Terminal 3
+cd backend && npm install && npm start
+        </pre>
+      </div>
+      <div class="card">
+        <h3>Deployed contract addresses</h3>
+        <button class="action secondary" onclick="loadDeployment()">Refresh</button>
+        <div class="result" id="deploymentResult"></div>
+      </div>
+      <div class="card">
+        <h3>Demo wallet directory</h3>
+        <p class="desc">For this prototype, 10 well-known local test wallets stand in for real members (Owner A, Member B, C, D...). In production these would be the members' own wallets (MetaMask / WalletConnect), never keys held by the backend.</p>
+        <button class="action secondary" onclick="loadWallets()">Load wallets</button>
+        <div id="walletTable"></div>
+      </div>
+    </div>
+
+    <!-- MEMBERS -->
+    <div class="panel" id="members">
+      <div class="card">
+        <h3>Register a member</h3>
+        <p class="desc">Assigns a unique member code (MEM-0001, MEM-0002, ...) and marks the wallet KYC-eligible.</p>
+        <label>Wallet address</label>
+        <select id="memberWalletSelect"></select>
+        <label>Name</label>
+        <input id="memberName" placeholder="e.g. Owner A" />
+        <button class="action" onclick="registerMember()">Register member</button>
+        <div class="result" id="memberResult"></div>
+      </div>
+      <div class="card">
+        <h3>Freeze / unfreeze a member</h3>
+        <p class="desc">A frozen wallet is instantly blocked from sending or receiving tokens — enforced by the smart contract, not policy.</p>
+        <label>Wallet address</label>
+        <select id="freezeWalletSelect"></select>
+        <div class="row">
+          <button class="action secondary" onclick="setFrozen(true)">Freeze</button>
+          <button class="action secondary" onclick="setFrozen(false)">Unfreeze</button>
+        </div>
+        <div class="result" id="freezeResult"></div>
+      </div>
+    </div>
+
+    <!-- COMPANY -->
+    <div class="panel" id="company">
+      <div class="card">
+        <h3>Onboard a company</h3>
+        <p class="desc">Registers the company and its owner. Voting rights default to this owner and stay there until a full redemption.</p>
+        <div class="row">
+          <div><label>Company name</label><input id="compName" placeholder="Citadelle Ltd" /></div>
+          <div><label>Jurisdiction</label><input id="compJurisdiction" placeholder="Hong Kong" /></div>
+        </div>
+        <label>Owner wallet</label>
+        <select id="compOwnerSelect"></select>
+        <button class="action" onclick="registerCompany()">Onboard company</button>
+        <div class="result" id="companyResult"></div>
+      </div>
+      <div class="card">
+        <h3>Verify Pillars 1 &amp; 2 (KYB + Owner KYC)</h3>
+        <p class="desc">Both must pass before a lien token can ever be issued for this company.</p>
+        <label>Company code</label>
+        <input id="verifyCompCode" placeholder="COMP-0001" />
+        <div class="row">
+          <button class="action secondary" onclick="verifyPillar('kyb')">Verify KYB</button>
+          <button class="action secondary" onclick="verifyPillar('kyc')">Verify Owner KYC</button>
+        </div>
+        <div class="result" id="verifyResult"></div>
+      </div>
+      <div class="card">
+        <h3>Company status</h3>
+        <label>Company code</label>
+        <input id="statusCompCode" placeholder="COMP-0001" />
+        <button class="action secondary" onclick="loadCompany()">Load status</button>
+        <div class="result" id="companyStatusResult"></div>
+      </div>
+    </div>
+
+    <!-- LIEN & TOKEN -->
+    <div class="panel" id="lien">
+      <div class="card">
+        <h3>Issue a lien token</h3>
+        <p class="desc">Deploys a brand-new, isolated token contract for this company's lien and mints the full fixed supply directly to the owner. Every company gets its own token — never pooled.</p>
+        <div class="row">
+          <div><label>Company code</label><input id="lienCompCode" placeholder="COMP-0001" /></div>
+          <div><label>Lien ID</label><input id="lienId" placeholder="LIEN-COMP-0001-01" /></div>
+        </div>
+        <div class="row">
+          <div><label>Token name</label><input id="lienTokenName" placeholder="Citadelle Lien Token" /></div>
+          <div><label>Token symbol</label><input id="lienTokenSymbol" placeholder="CIT-L1" /></div>
+        </div>
+        <div class="row">
+          <div><label>Fixed supply (tokens minted)</label><input id="lienSupply" placeholder="1000" /></div>
+          <div><label>Owner wallet (receives tokens)</label><select id="lienOwnerSelect"></select></div>
+        </div>
+        <button class="action" onclick="deployLien()">Deploy + issue token</button>
+        <div class="result" id="lienResult"></div>
+      </div>
+      <div class="card">
+        <h3>Token info</h3>
+        <label>Token address</label>
+        <input id="tokenInfoAddress" placeholder="0x..." />
+        <button class="action secondary" onclick="loadTokenInfo()">Load token info</button>
+        <div class="result" id="tokenInfoResult"></div>
+      </div>
+    </div>
+
+    <!-- TRANSFER -->
+    <div class="panel" id="transfer">
+      <div class="card">
+        <h3>Transfer tokens (A → B → C → D...)</h3>
+        <p class="desc">Only KYC-eligible, non-frozen wallets can send or receive. Voting rights are untouched by transfers — they stay with the original owner.</p>
+        <label>Token address</label>
+        <input id="xferTokenAddress" placeholder="0x..." />
+        <div class="row">
+          <div><label>From</label><select id="xferFrom"></select></div>
+          <div><label>To</label><select id="xferTo"></select></div>
+        </div>
+        <label>Amount</label>
+        <input id="xferAmount" placeholder="1000" />
+        <button class="action" onclick="transferTokens()">Transfer</button>
+        <div class="result" id="xferResult"></div>
+      </div>
+      <div class="card">
+        <h3>Check balance</h3>
+        <label>Token address</label>
+        <input id="balTokenAddress" placeholder="0x..." />
+        <label>Wallet</label>
+        <select id="balWallet"></select>
+        <button class="action secondary" onclick="checkBalance()">Check balance</button>
+        <div class="result" id="balResult"></div>
+      </div>
+    </div>
+
+    <!-- REDEEM -->
+    <div class="panel" id="redeem">
+      <div class="card">
+        <h3>Request redemption</h3>
+        <p class="desc">Current holder burns their tokens to formally request the real, previously-liened shares be released to them.</p>
+        <label>Token address</label>
+        <input id="redeemTokenAddress" placeholder="0x..." />
+        <div class="row">
+          <div><label>Holder wallet</label><select id="redeemHolder"></select></div>
+          <div><label>Amount</label><input id="redeemAmount" placeholder="1000" /></div>
+        </div>
+        <button class="action" onclick="requestRedemption()">Request redemption</button>
+        <div class="result" id="redeemResult"></div>
+      </div>
+      <div class="card">
+        <h3>Compliance: execute redemption</h3>
+        <p class="desc">Confirms the real-world share transfer has happened. This is the on-chain audit trail entry.</p>
+        <div class="row">
+          <div><label>Token address</label><input id="execTokenAddress" placeholder="0x..." /></div>
+          <div><label>Redemption ID</label><input id="execRedemptionId" placeholder="1" /></div>
+        </div>
+        <label>Note</label>
+        <input id="execNote" placeholder="Shares transferred to Member D via registrar" />
+        <button class="action" onclick="executeRedemption()">Execute redemption</button>
+        <div class="result" id="execResult"></div>
+      </div>
+      <div class="card">
+        <h3>Move voting rights</h3>
+        <p class="desc">The final, deliberate step: voting rights only move when compliance confirms it — not automatically.</p>
+        <div class="row">
+          <div><label>Company code</label><input id="voteCompCode" placeholder="COMP-0001" /></div>
+          <div><label>New voting rights holder</label><select id="voteNewHolder"></select></div>
+        </div>
+        <label>Reason</label>
+        <input id="voteReason" placeholder="Full redemption by MEM-0004" />
+        <button class="action" onclick="transferVoting()">Transfer voting rights</button>
+        <div class="result" id="voteResult"></div>
+      </div>
+    </div>
+  </main>
+
+<script>
+const API = "http://localhost:4000/api";
+let walletCache = [];
+
+document.querySelectorAll("nav .tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav .tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(btn.dataset.panel).classList.add("active");
+  });
+});
+
+function showResult(id, ok, data) {
+  const el = document.getElementById(id);
+  el.className = "result show " + (ok ? "ok" : "err");
+  el.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+}
+
+async function api(path, opts) {
+  const res = await fetch(API + path, opts);
+  const data = await res.json();
+  return { ok: res.ok && data.ok !== false, data };
+}
+
+async function checkHealth() {
+  try {
+    const { ok, data } = await api("/health");
+    document.getElementById("statusDot").className = "status-dot " + (ok ? "up" : "down");
+    document.getElementById("statusText").textContent = ok
+      ? `Connected — chain: ${data.rpc} — deployed: ${data.deployed}`
+      : "API unreachable. Is the backend running on :4000?";
+  } catch (e) {
+    document.getElementById("statusDot").className = "status-dot down";
+    document.getElementById("statusText").textContent = "API unreachable. Start the backend (see Setup tab).";
+  }
+}
+
+async function loadDeployment() {
+  const { ok, data } = await api("/deployment");
+  showResult("deploymentResult", ok, data);
+}
+
+async function loadWallets() {
+  const { ok, data } = await api("/wallets");
+  if (!ok) return;
+  walletCache = data.wallets;
+  const table = document.getElementById("walletTable");
+  table.innerHTML = `<table><tr><th>#</th><th>Address</th><th>Role</th></tr>` +
+    data.wallets.map(w => `<tr><td>${w.index}</td><td>${w.address}</td><td>${w.index===0?'<span class="badge-gold">Admin</span>':(w.index===1?'Owner A':(w.index===2?'Member B':(w.index===3?'Member C':(w.index===4?'Member D':'Demo wallet '+w.index))))}</td></tr>`).join("") +
+    `</table>`;
+  populateSelects();
+}
+
+function populateSelects() {
+  const ids = ["memberWalletSelect","freezeWalletSelect","compOwnerSelect","lienOwnerSelect","xferFrom","xferTo","balWallet","redeemHolder","voteNewHolder"];
+  ids.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = walletCache.map(w => {
+      const label = w.index===0?'Admin':(w.index===1?'Owner A':(w.index===2?'Member B':(w.index===3?'Member C':(w.index===4?'Member D':'Wallet '+w.index))));
+      return `<option value="${w.address}">${label} — ${w.address.slice(0,10)}...</option>`;
+    }).join("");
+  });
+}
+
+// ---- Members ----
+async function registerMember() {
+  const address = document.getElementById("memberWalletSelect").value;
+  const name = document.getElementById("memberName").value;
+  const { ok, data } = await api("/members", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ address, name }) });
+  showResult("memberResult", ok, data);
+}
+async function setFrozen(frozen) {
+  const address = document.getElementById("freezeWalletSelect").value;
+  const { ok, data } = await api(`/members/${address}/freeze`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ frozen }) });
+  showResult("freezeResult", ok, data);
+}
+
+// ---- Company ----
+async function registerCompany() {
+  const name = document.getElementById("compName").value;
+  const jurisdiction = document.getElementById("compJurisdiction").value;
+  const ownerAddress = document.getElementById("compOwnerSelect").value;
+  const { ok, data } = await api("/companies", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name, jurisdiction, ownerAddress }) });
+  showResult("companyResult", ok, data);
+}
+async function verifyPillar(kind) {
+  const code = document.getElementById("verifyCompCode").value;
+  const path = kind === "kyb" ? `/companies/${code}/verify-kyb` : `/companies/${code}/verify-owner-kyc`;
+  const { ok, data } = await api(path, { method: "POST" });
+  showResult("verifyResult", ok, data);
+}
+async function loadCompany() {
+  const code = document.getElementById("statusCompCode").value;
+  const { ok, data } = await api(`/companies/${code}`);
+  showResult("companyStatusResult", ok, data);
+}
+
+// ---- Lien / Token ----
+async function deployLien() {
+  const body = {
+    companyCode: document.getElementById("lienCompCode").value,
+    lienId: document.getElementById("lienId").value,
+    tokenName: document.getElementById("lienTokenName").value,
+    tokenSymbol: document.getElementById("lienTokenSymbol").value,
+    maxSupply: document.getElementById("lienSupply").value,
+    ownerAddress: document.getElementById("lienOwnerSelect").value,
+  };
+  const { ok, data } = await api("/liens", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  showResult("lienResult", ok, data);
+  if (ok && data.tokenAddress) {
+    ["tokenInfoAddress","xferTokenAddress","balTokenAddress","redeemTokenAddress","execTokenAddress"].forEach(id => {
+      document.getElementById(id).value = data.tokenAddress;
+    });
+  }
+}
+async function loadTokenInfo() {
+  const address = document.getElementById("tokenInfoAddress").value;
+  const { ok, data } = await api(`/tokens/${address}`);
+  showResult("tokenInfoResult", ok, data);
+}
+
+// ---- Transfer ----
+async function transferTokens() {
+  const address = document.getElementById("xferTokenAddress").value;
+  const from = document.getElementById("xferFrom").value;
+  const to = document.getElementById("xferTo").value;
+  const amount = document.getElementById("xferAmount").value;
+  const { ok, data } = await api(`/tokens/${address}/transfer`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ from, to, amount }) });
+  showResult("xferResult", ok, data);
+}
+async function checkBalance() {
+  const address = document.getElementById("balTokenAddress").value;
+  const owner = document.getElementById("balWallet").value;
+  const { ok, data } = await api(`/tokens/${address}/balance/${owner}`);
+  showResult("balResult", ok, data);
+}
+
+// ---- Redeem ----
+async function requestRedemption() {
+  const address = document.getElementById("redeemTokenAddress").value;
+  const holder = document.getElementById("redeemHolder").value;
+  const amount = document.getElementById("redeemAmount").value;
+  const { ok, data } = await api(`/tokens/${address}/redeem`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ holder, amount }) });
+  showResult("redeemResult", ok, data);
+  if (ok && data.redemptionId) document.getElementById("execRedemptionId").value = data.redemptionId;
+}
+async function executeRedemption() {
+  const address = document.getElementById("execTokenAddress").value;
+  const id = document.getElementById("execRedemptionId").value;
+  const note = document.getElementById("execNote").value;
+  const { ok, data } = await api(`/tokens/${address}/redemptions/${id}/execute`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ note }) });
+  showResult("execResult", ok, data);
+}
+async function transferVoting() {
+  const code = document.getElementById("voteCompCode").value;
+  const newHolder = document.getElementById("voteNewHolder").value;
+  const reason = document.getElementById("voteReason").value;
+  const { ok, data } = await api(`/companies/${code}/transfer-voting`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ newHolder, reason }) });
+  showResult("voteResult", ok, data);
+}
+
+checkHealth();
+loadWallets();
+loadDeployment();
+setInterval(checkHealth, 8000);
+</script>
+</body>
+</html>

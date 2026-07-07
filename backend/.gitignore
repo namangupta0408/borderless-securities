@@ -1,0 +1,12 @@
+node_modules/
+backend/node_modules/
+
+artifacts/
+cache/
+
+.env
+.env.*
+
+.DS_Store
+
+deployment.json
